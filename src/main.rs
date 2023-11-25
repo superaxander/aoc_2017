@@ -1,5 +1,6 @@
 #![feature(array_windows)]
 #![feature(int_roundings)]
+#![feature(let_chains)]
 #![feature(lazy_cell)]
 #![deny(clippy::pedantic)]
 #[macro_use]
@@ -31,9 +32,9 @@ mod day11;
 mod day12;
 mod day13;
 mod day14;
-// mod day15;
-// mod day16;
-// mod day17;
+mod day15;
+mod day16;
+mod day17;
 // mod day18;
 // mod day19;
 
@@ -61,5 +62,8 @@ fn main() {
     Day::Combined(day12::main).run("day 12");
     Day::Combined(day13::main).run("day 13");
     Day::Combined(day14::main).run("day 14");
+    Day::Combined(day15::main).run("day 15");
+    Day::Combined(day16::main).run("day 16");
+    Day::Combined(day17::main).run("day 17");
     info!("All days together took {:#?}", now.elapsed());
 }
