@@ -36,7 +36,7 @@ mod day15;
 mod day16;
 mod day17;
 mod day18;
-// mod day19;
+mod day19;
 
 // mod day20;
 // mod day21;
@@ -66,5 +66,6 @@ fn main() {
     Day::Combined(day16::main).run("day 16");
     Day::Combined(day17::main).run("day 17");
     Day::Combined(day18::main).run("day 18");
+    Day::Combined(day19::main).run("day 19");
     info!("All days together took {:#?}", now.elapsed());
 }
