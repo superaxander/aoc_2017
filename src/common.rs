@@ -1,14 +1,19 @@
-use anyhow::Result;
 use core::convert::AsRef;
 use core::result::Result::Ok;
-use regex::Regex;
-use std::fmt::Display;
+use std::collections::HashMap;
+use std::fmt::{Debug, Display, Formatter};
 use std::fs::File;
+use std::hash::Hash;
 use std::io;
 use std::io::{BufRead, BufReader};
+use std::ops::{Add, Div, Mul, Sub};
 use std::path::Path;
 use std::sync::LazyLock;
 use std::time::Instant;
+
+use anyhow::Result;
+use regex::Regex;
+use tracing::{error, info};
 
 pub static RE_WS: LazyLock<Regex> = LazyLock::new(|| Regex::new("\\s+").unwrap());
 
@@ -22,16 +27,9 @@ where
 
 #[allow(dead_code)]
 pub enum Day<SolutionA: Display, SolutionB: Display> {
-    // Combined(fn() -> Result<(i32, i32)>),
-    // CombinedUsize(fn() -> Result<(usize, usize)>),
-    // CombinedLong(fn() -> Result<(i64, i64)>),
-    // CombinedString(fn() -> Result<(String, String)>),
     Combined(fn() -> Result<(SolutionA, SolutionB)>),
-    Separated(fn() -> Result<SolutionA>, fn() -> Result<SolutionB>),
-    // Separated(fn(bool) -> Result<i32>),
-    // SeparatedLong(fn(bool) -> Result<i64>),
-    // SeparatedUsize(fn(bool) -> Result<usize>),
-    // SeparatedULong(fn(bool) -> Result<u64>),
+    Separated(fn() -> Result<SolutionA>, fn() -> Result<SolutionA>),
+    BoolSeparated(fn(bool) -> Result<SolutionA>),
 }
 
 impl<SolutionA: Display, SolutionB: Display> Day<SolutionA, SolutionB> {
@@ -54,6 +52,16 @@ impl<SolutionA: Display, SolutionB: Display> Day<SolutionA, SolutionB> {
                 info!("Solution {}a: {}", name, solution_a);
                 info!("Solution {}b: {}", name, solution_b);
             }
+            Day::BoolSeparated(func) => {
+                let now = Instant::now();
+                let solution_a = func(false)?;
+                info!("Part a took {:#?}", now.elapsed());
+                let now = Instant::now();
+                let solution_b = func(true)?;
+                info!("Part b took {:#?}", now.elapsed());
+                info!("Solution {}a: {}", name, solution_a);
+                info!("Solution {}b: {}", name, solution_b);
+            }
         }
         Ok(())
     }
@@ -67,6 +75,320 @@ impl<SolutionA: Display, SolutionB: Display> Runnable for Day<SolutionA, Solutio
     fn run(&self, name: &str) {
         if let Err(e) = self.run_with_result(name) {
             error!("Error occurred running {}: {}", name, e);
+        }
+    }
+}
+
+pub trait Coordinate: Clone + Eq + PartialEq + Hash + From<(usize, usize)> {
+    fn min(&self, other: &Self) -> Self;
+
+    fn max(&self, other: &Self) -> Self;
+
+    fn range_to_debug(&self, other: &Self) -> impl Iterator<Item = (bool, Self)>;
+}
+
+pub trait CharConvertable: Sized {
+    fn to_char(option: Option<&Self>) -> char;
+    fn from_char(c: char) -> Option<Self>;
+}
+
+#[derive(Clone, PartialEq)]
+pub struct InfiniteGrid<Coord: Coordinate, Data: PartialEq, const CACHED_EXTENTS: bool, const INCLUDE_EMPTY: bool = false> {
+    map: HashMap<Coord, Data>,
+    min: Option<Coord>,
+    max: Option<Coord>,
+}
+
+impl<Coord: Coordinate, Data: Clone + CharConvertable + PartialEq, const CACHED_EXTENTS: bool, const INCLUDE_EMPTY: bool>
+    InfiniteGrid<Coord, Data, CACHED_EXTENTS, INCLUDE_EMPTY>
+{
+    pub fn read(lines: impl Iterator<Item = impl AsRef<str>>) -> Self {
+        // Include empty makes no sense if we aren't caching
+        debug_assert!(CACHED_EXTENTS || !INCLUDE_EMPTY);
+        let mut grid = Self {
+            map: HashMap::new(),
+            min: None,
+            max: None,
+        };
+        for (y, line) in lines.enumerate() {
+            for (x, c) in line.as_ref().trim().chars().enumerate() {
+                let coord = Coord::from((x, y));
+                let result = grid.set(coord, Data::from_char(c));
+                debug_assert!(result.is_none());
+            }
+        }
+        grid
+    }
+
+    pub fn get(&self, coord: &Coord) -> Option<&Data> {
+        self.map.get(coord)
+    }
+
+    pub fn set(&mut self, coord: Coord, data: Option<Data>) -> Option<Data> {
+        match data {
+            None =>{
+                if CACHED_EXTENTS && INCLUDE_EMPTY {
+                    self.min = Some(
+                        self.min
+                            .take()
+                            .map(|m| m.min(&coord))
+                            .unwrap_or_else(|| coord.clone()),
+                    );
+                    self.max = Some(
+                        self.max
+                            .take()
+                            .map(|m| m.max(&coord))
+                            .unwrap_or_else(|| coord.clone()),
+                    );
+                }
+                self.map.remove(&coord)
+            }
+            Some(data) => {
+                if CACHED_EXTENTS {
+                    self.min = Some(
+                        self.min
+                            .take()
+                            .map(|m| m.min(&coord))
+                            .unwrap_or_else(|| coord.clone()),
+                    );
+                    self.max = Some(
+                        self.max
+                            .take()
+                            .map(|m| m.max(&coord))
+                            .unwrap_or_else(|| coord.clone()),
+                    );
+                }
+                self.map.insert(coord, data)
+            }
+        }
+    }
+
+    pub fn extents(&self) -> (Coord, Coord) {
+        if CACHED_EXTENTS {
+            (
+                self.min.as_ref().unwrap().clone(),
+                self.max.as_ref().unwrap().clone(),
+            )
+        } else {
+            (
+                self.map.keys().cloned().reduce(|a, b| a.min(&b)).unwrap(),
+                self.map.keys().cloned().reduce(|a, b| a.max(&b)).unwrap(),
+            )
+        }
+    }
+    
+    pub fn entries(&self) -> impl Iterator<Item = (Coord, Data)> + '_ {
+        self.map.iter().map(|(coord, data)| (coord.clone(), data.clone()))
+    }
+}
+
+impl<Coord: Coordinate + Debug, Data: Clone + CharConvertable + PartialEq, const CACHED_EXTENTS: bool, const INCLUDE_EMPTY: bool> Debug
+    for InfiniteGrid<Coord, Data, CACHED_EXTENTS, INCLUDE_EMPTY>
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let (min, max) = self.extents();
+        for (nl, coord) in min.range_to_debug(&max) {
+            if nl {
+                writeln!(
+                    f,
+                    "{}",
+                    Data::to_char(self.get(&coord))
+                )?
+            } else {
+                write!(
+                    f,
+                    "{}",
+                    Data::to_char(self.get(&coord))
+                )?
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct SignedCoordinate {
+    x: i64,
+    y: i64,
+}
+
+impl From<(usize, usize)> for SignedCoordinate {
+    fn from((x, y): (usize, usize)) -> Self {
+        Self {
+            x: x as i64,
+            y: y as i64,
+        }
+    }
+}
+
+impl SignedCoordinate {
+    pub const ZERO: SignedCoordinate = SignedCoordinate { x: 0, y: 0 };
+
+    pub fn new(x: i64, y: i64) -> Self { Self {x, y} }
+
+    pub fn north(&self) -> SignedCoordinate {
+        SignedCoordinate {
+            x: self.x,
+            y: self.y - 1,
+        }
+    }
+    pub fn east(&self) -> SignedCoordinate {
+        SignedCoordinate {
+            x: self.x + 1,
+            y: self.y,
+        }
+    }
+    pub fn south(&self) -> SignedCoordinate {
+        SignedCoordinate {
+            x: self.x,
+            y: self.y + 1,
+        }
+    }
+    pub fn west(&self) -> SignedCoordinate {
+        SignedCoordinate {
+            x: self.x - 1,
+            y: self.y,
+        }
+    }
+
+    pub fn forward(&self, facing: Facing) -> SignedCoordinate {
+        match facing {
+            Facing::North => self.north(),
+            Facing::East => self.east(),
+            Facing::South => self.south(),
+            Facing::West => self.west(),
+        }
+    }
+}
+
+impl Debug for SignedCoordinate {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
+
+impl Display for SignedCoordinate {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
+
+impl Coordinate for SignedCoordinate {
+    fn min(&self, other: &Self) -> Self {
+        SignedCoordinate {
+            x: self.x.min(other.x),
+            y: self.y.min(other.y),
+        }
+    }
+
+    fn max(&self, other: &Self) -> Self {
+        SignedCoordinate {
+            x: self.x.max(other.x),
+            y: self.y.max(other.y),
+        }
+    }
+
+    fn range_to_debug(&self, other: &Self) -> impl Iterator<Item = (bool, Self)> {
+        (self.y..=other.y).flat_map(move |y| {
+            (self.x..=other.x).map(move |x| {
+                if x == other.x {
+                    (true, SignedCoordinate { x, y })
+                } else {
+                    (false, SignedCoordinate { x, y })
+                }
+            })
+        })
+    }
+}
+
+impl Add for SignedCoordinate {
+    type Output = SignedCoordinate;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+        }
+    }
+}
+
+impl Sub for SignedCoordinate {
+    type Output = SignedCoordinate;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
+    }
+}
+
+impl Mul<i64> for SignedCoordinate {
+    type Output = SignedCoordinate;
+
+    fn mul(self, rhs: i64) -> Self::Output {
+        Self {
+            x: self.x * rhs,
+            y: self.y * rhs,
+        }
+    }
+}
+
+impl Mul<SignedCoordinate> for i64 {
+    type Output = SignedCoordinate;
+
+    fn mul(self, rhs: SignedCoordinate) -> Self::Output {
+        SignedCoordinate {
+            x: self * rhs.x,
+            y: self * rhs.y,
+        }
+    }
+}
+
+impl Div<i64> for SignedCoordinate {
+    type Output = SignedCoordinate;
+
+    fn div(self, rhs: i64) -> Self::Output {
+        Self {
+            x: self.x / rhs,
+            y: self.y / rhs,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub enum Facing {
+    North,
+    East,
+    South,
+    West
+}
+
+impl Facing {
+    pub fn left(&self) -> Self {
+        match self {
+            Facing::North => Facing::West,
+            Facing::East => Facing::North,
+            Facing::South => Facing::East,
+            Facing::West => Facing::South
+        }
+    }
+
+    pub fn right(&self) -> Self {
+        match self {
+            Facing::North => Facing::East,
+            Facing::East => Facing::South,
+            Facing::South => Facing::West,
+            Facing::West => Facing::North
+        }
+    }
+
+    pub fn flip(&self) -> Self {
+        match self {
+            Facing::North => Facing::South,
+            Facing::East => Facing::West,
+            Facing::South => Facing::North,
+            Facing::West => Facing::East
         }
     }
 }

@@ -1,6 +1,5 @@
-use anyhow::Result;
-
 use crate::common;
+use anyhow::Result;
 
 pub fn main() -> Result<(i64, i64)> {
     let mut lines = common::read_lines("inputs/15.txt")?;
@@ -24,11 +23,11 @@ pub fn main() -> Result<(i64, i64)> {
     let mut solution_a = 0;
     let mut solution_b = 0;
 
-    let mut answers_a = Vec::new();
-    let mut answers_b = Vec::new();
+    let mut answers_a = Vec::with_capacity(5_000_000);
+    let mut answers_b = Vec::with_capacity(5_000_000);
     let mut i = 0;
 
-    while i < 40_000_000 || answers_a.len().min(answers_b.len()) < 5_000_000 {
+    while i < 40_000_000 || answers_b.len() < 5_000_000 {
         let a = (last_a * 16807) % 2_147_483_647;
         let b = (last_b * 48271) % 2_147_483_647;
 
@@ -36,8 +35,8 @@ pub fn main() -> Result<(i64, i64)> {
             solution_a += 1;
         }
 
-        if answers_a.len().min(answers_b.len()) < 5_000_000 {
-            if a % 4 == 0 {
+        if answers_b.len() < 5_000_000 {
+            if a % 4 == 0 && answers_a.len() < 5_000_000 {
                 answers_a.push(a);
             }
 
