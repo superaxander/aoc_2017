@@ -93,14 +93,23 @@ pub trait CharConvertable: Sized {
 }
 
 #[derive(Clone, PartialEq)]
-pub struct InfiniteGrid<Coord: Coordinate, Data: PartialEq, const CACHED_EXTENTS: bool, const INCLUDE_EMPTY: bool = false> {
+pub struct InfiniteGrid<
+    Coord: Coordinate,
+    Data: PartialEq,
+    const CACHED_EXTENTS: bool,
+    const INCLUDE_EMPTY: bool = false,
+> {
     map: HashMap<Coord, Data>,
     min: Option<Coord>,
     max: Option<Coord>,
 }
 
-impl<Coord: Coordinate, Data: Clone + CharConvertable + PartialEq, const CACHED_EXTENTS: bool, const INCLUDE_EMPTY: bool>
-    InfiniteGrid<Coord, Data, CACHED_EXTENTS, INCLUDE_EMPTY>
+impl<
+        Coord: Coordinate,
+        Data: Clone + CharConvertable + PartialEq,
+        const CACHED_EXTENTS: bool,
+        const INCLUDE_EMPTY: bool,
+    > InfiniteGrid<Coord, Data, CACHED_EXTENTS, INCLUDE_EMPTY>
 {
     pub fn read(lines: impl Iterator<Item = impl AsRef<str>>) -> Self {
         // Include empty makes no sense if we aren't caching
@@ -126,7 +135,7 @@ impl<Coord: Coordinate, Data: Clone + CharConvertable + PartialEq, const CACHED_
 
     pub fn set(&mut self, coord: Coord, data: Option<Data>) -> Option<Data> {
         match data {
-            None =>{
+            None => {
                 if CACHED_EXTENTS && INCLUDE_EMPTY {
                     self.min = Some(
                         self.min
@@ -176,30 +185,28 @@ impl<Coord: Coordinate, Data: Clone + CharConvertable + PartialEq, const CACHED_
             )
         }
     }
-    
+
     pub fn entries(&self) -> impl Iterator<Item = (Coord, Data)> + '_ {
-        self.map.iter().map(|(coord, data)| (coord.clone(), data.clone()))
+        self.map
+            .iter()
+            .map(|(coord, data)| (coord.clone(), data.clone()))
     }
 }
 
-impl<Coord: Coordinate + Debug, Data: Clone + CharConvertable + PartialEq, const CACHED_EXTENTS: bool, const INCLUDE_EMPTY: bool> Debug
-    for InfiniteGrid<Coord, Data, CACHED_EXTENTS, INCLUDE_EMPTY>
+impl<
+        Coord: Coordinate + Debug,
+        Data: Clone + CharConvertable + PartialEq,
+        const CACHED_EXTENTS: bool,
+        const INCLUDE_EMPTY: bool,
+    > Debug for InfiniteGrid<Coord, Data, CACHED_EXTENTS, INCLUDE_EMPTY>
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let (min, max) = self.extents();
         for (nl, coord) in min.range_to_debug(&max) {
             if nl {
-                writeln!(
-                    f,
-                    "{}",
-                    Data::to_char(self.get(&coord))
-                )?
+                writeln!(f, "{}", Data::to_char(self.get(&coord)))?
             } else {
-                write!(
-                    f,
-                    "{}",
-                    Data::to_char(self.get(&coord))
-                )?
+                write!(f, "{}", Data::to_char(self.get(&coord)))?
             }
         }
         Ok(())
@@ -224,7 +231,9 @@ impl From<(usize, usize)> for SignedCoordinate {
 impl SignedCoordinate {
     pub const ZERO: SignedCoordinate = SignedCoordinate { x: 0, y: 0 };
 
-    pub fn new(x: i64, y: i64) -> Self { Self {x, y} }
+    pub fn new(x: i64, y: i64) -> Self {
+        Self { x, y }
+    }
 
     pub fn north(&self) -> SignedCoordinate {
         SignedCoordinate {
@@ -361,7 +370,7 @@ pub enum Facing {
     North,
     East,
     South,
-    West
+    West,
 }
 
 impl Facing {
@@ -370,7 +379,7 @@ impl Facing {
             Facing::North => Facing::West,
             Facing::East => Facing::North,
             Facing::South => Facing::East,
-            Facing::West => Facing::South
+            Facing::West => Facing::South,
         }
     }
 
@@ -379,7 +388,7 @@ impl Facing {
             Facing::North => Facing::East,
             Facing::East => Facing::South,
             Facing::South => Facing::West,
-            Facing::West => Facing::North
+            Facing::West => Facing::North,
         }
     }
 
@@ -388,7 +397,53 @@ impl Facing {
             Facing::North => Facing::South,
             Facing::East => Facing::West,
             Facing::South => Facing::North,
-            Facing::West => Facing::East
+            Facing::West => Facing::East,
         }
     }
+}
+
+pub fn is_prime(i: i64) -> bool {
+    for j in 2..i / 2 {
+        if i % j == 0 {
+            return false;
+        }
+    }
+    true
+}
+
+pub fn url_encode(string: &str) -> String {
+    let mut encoded = String::new();
+    for c in string.chars() {
+        match c {
+            '\n' => encoded.push_str("%0A"),
+            '\t' => encoded.push_str("%09"),
+            ' ' => encoded.push_str("%20"),
+            '!' => encoded.push_str("%21"),
+            '"' => encoded.push_str("%22"),
+            '#' => encoded.push_str("%23"),
+            '$' => encoded.push_str("%24"),
+            '%' => encoded.push_str("%25"),
+            '&' => encoded.push_str("%26"),
+            '\'' => encoded.push_str("%27"),
+            '(' => encoded.push_str("%28"),
+            ')' => encoded.push_str("%29"),
+            '*' => encoded.push_str("%2A"),
+            '+' => encoded.push_str("%2B"),
+            ',' => encoded.push_str("%2C"),
+            '/' => encoded.push_str("%2F"),
+            ':' => encoded.push_str("%3A"),
+            ';' => encoded.push_str("%3B"),
+            '<' => encoded.push_str("%3C"),
+            '>' => encoded.push_str("%3E"),
+            '=' => encoded.push_str("%3D"),
+            '?' => encoded.push_str("%3F"),
+            '@' => encoded.push_str("%40"),
+            '[' => encoded.push_str("%5B"),
+            ']' => encoded.push_str("%5D"),
+            '{' => encoded.push_str("%7B"),
+            '}' => encoded.push_str("%7D"),
+            _ => encoded.push(c),
+        }
+    }
+    encoded
 }

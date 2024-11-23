@@ -37,13 +37,13 @@ mod day19;
 mod day20;
 mod day21;
 mod day22;
-// mod day23;
+mod day23;
 // mod day24;
 // mod day25;
 
 fn main() {
     tracing_subscriber::fmt::fmt()
-        .with_max_level(Level::INFO)
+        .with_max_level(Level::DEBUG)
         .init();
     let span = info_span!("All days");
     span.in_scope(|| {
@@ -70,7 +70,7 @@ fn main() {
         Day::Combined(day20::main).run("day 20");
         Day::Combined(day21::main).run("day 21");
         Day::Combined(day22::main).run("day 22");
-        // Day::Combined(day23::main).run("day 23");
+        Day::Combined(day23::main).run("day 23");
         // Day::Combined(day24::main).run("day 24");
         // Day::Combined(day25::main).run("day 25");
 

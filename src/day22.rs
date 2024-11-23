@@ -31,12 +31,14 @@ impl CharConvertable for State {
 pub fn main() -> Result<(i64, i64)> {
     let lines = read_lines("inputs/22.txt")?;
 
-    let start_grid = lines.process_results(|lines|InfiniteGrid::<SignedCoordinate, State, true, true>::read(lines))?;
+    let start_grid = lines.process_results(|lines| {
+        InfiniteGrid::<SignedCoordinate, State, true, true>::read(lines)
+    })?;
     let extents = start_grid.extents();
 
     let mut solution_a = 0;
     let mut solution_b = 0;
-    
+
     let mut position = (extents.0 + extents.1) / 2;
     let mut facing = Facing::North;
     let mut grid = start_grid.clone();
@@ -51,7 +53,7 @@ pub fn main() -> Result<(i64, i64)> {
                 facing = facing.right();
                 grid.set(position, None);
             }
-            _ => panic!()
+            _ => panic!(),
         }
         position = position.forward(facing);
     }
